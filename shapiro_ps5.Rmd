@@ -1,0 +1,155 @@
+---
+title: "Problem Set 5"
+author: "Daniel Shapiro"
+date: "9/29/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen = 999)
+set.seed(6800)
+library(tidyverse)
+library(readr)
+library(stats)
+```
+
+
+### Question 1 Background:
+
+*For this problem we will use data on funds raised by a subset of incumbent Democrats in the US House of Representatives for the 2006 election cycle. Download the data, \texttt{house.csv}. In the dataset, you will find the name of the representatives (\texttt{house\$candidate}) and the funds they raised in thousands of dollars (\texttt{house\$receipts}).*
+
+```{r readin}
+house <- read.csv("house.csv")
+```
+
+
+### 1a) First, use \texttt{ggplot()} and \texttt{geom\_density()} to plot the density of  \texttt{house\$receipts} and briefly describe the distribution of the receipts variable in the House of Representatives dataset.
+
+```{r 1a}
+ggplot(house, aes(x = receipts)) +
+  geom_density() +
+  labs(title = "Distribution of Receipts Variable, House of Representatives",
+       x = "Receipts",
+       y = "Density")
+```
+
+The distribution of the house$receipts variable is located for the most part between 0 and 2500; however, there are a few values that occur later on -- one just below 5000, another around 8500, another around 12000, and another around 14000.
+
+### 1b) Find the mean and standard deviation of \texttt{house\$receipts}, and the standard error of the mean. Write your own function for the standard deviation -- do not used a canned \texttt{R} function.
+
+```{r 1b}
+mean(house$receipts)
+
+deviation <- function(data){
+
+  # Define the mean. I put this with an extra letter just in case it gets confused
+  # with a function.
+  
+  meann <- mean(data)
+  
+  # Add an empty vector to do a for loop over
+  
+  vector <- c(rep(0, times = length(data)))
+  
+  for(i in 1:length(data)){
+    vector[i] <- (data[i] - meann)^2
+  }
+  
+  summ <- sum(vector)
+  variance <- summ/(length(vector) - 1)
+  deviation <- sqrt(variance)
+  
+deviation
+}
+
+deviation(house$receipts)
+```
+
+The mean is listed as `r mean(house$receipts)` and the standard deviation is `r deviation(house$receipts)`. 
+
+```{r se}
+se <- deviation(house$receipts)/sqrt(length(house$receipts))
+se
+```
+
+This `r se` is the standard error of the mean.
+
+### 1c) Find 95% confidence intervals for your estimate of the mean. Interpret this CI (in words).
+
+The function to find the confidence interval can be expressed as: 
+$\overline{X} \pm t_{\alpha/2, N-1}S_{\overline{x}}$
+
+We already have $\overline{X}$; that's just the mean of the string. We also already have $S_{\overline{x}}$; that's just the standard error. So now we need to get $\alpha$ and the t score. Then we can plug everything in.
+
+```{r ci}
+# We make this equal to .05 because we are looking for the 95% CI. Will
+# have to divide by two later. All of this is just setup.
+
+alpha <- .05
+
+degrees_freedom <- length(house$receipts) - 1
+
+# Here, we use the quantile function from the stats package. Honestly, I've never 
+# been super sure how the quantile function works. But I know I've used it 
+# in R before for this sort of thing, so I'm doing it again here.
+
+ts <- qt(p = alpha/2, df = degrees_freedom, lower.tail = FALSE)
+
+# Regardless, now we have the T score. I set lower.tail to FALSE because otherwise
+# it came out flipped. 
+
+margin <- ts * se
+
+lower <- mean(house$receipts) - margin
+upper <- mean(house$receipts) + margin
+
+c(lower, upper)
+```
+
+These two values, pictured above, are the bounds of our 95% confidence interval for the string house$receipts. This means that we can be 95% confident that the mean candidate receipt value lies between 976.1099 and 1404.5092. 
+
+### 1d) Confirm, through simulation, that if you redraw 1,000 samples from your data of the size of your data (with replacement), about 95% of them fall into your confidence interval.
+
+```{r 1d}
+# A favorite of mine -- rep_sample_n from the infer package.
+
+sample <- house %>% infer::rep_sample_n(size = 191, replace = TRUE, reps = 1000) %>%
+  select(-candidate)
+
+# Map the mean() to the data. I didn't need the candidate column either.
+
+samplemean <- sample %>%
+  group_by(replicate) %>%
+  nest() %>%
+  mutate(mean = map(.x = data, .f = ~mean(.x$receipts, na.rm = TRUE))) %>%
+  select(-data) %>%
+  ungroup()
+
+testdata <- samplemean %>%
+  filter(mean > 976.1099) %>%
+  filter(mean < 1404.5092)
+
+nrow(testdata) / nrow(samplemean)
+```
+
+Confirmed!
+
+### Question 2 Background:
+
+*Now, we will use the house data to examine how well different estimators recover the true population mean of funds raised. We will now assume that our sample represents the full population (e.g., the mean found above is the true $\mu$). Our parade of estimators will involve drawing 1,000 random samples (without replacement) of size $n$ from the population. Let $X = \lbrace X_1, \dots, X_N\rbrace$ denote the vector of sample observations, so $X_i$ denotes the i-th observation drawn in each sample with $i = 1,\dots, N$. We consider the following estimators:*
+
+\begin{itemize}
+\item The Sample Mean: $ \hat{\mu} = \frac{1}{N}\sum_{i=1}^{N} X_i$
+\item The Sample Median:  If your sample is ordered such that $X_1\leq X_2\leq X_3...\leq X_n$, the median is the midpoint value.
+\item The Deletion Estimator I: Order the sample observations such that $X_1\leq X_2\leq X_3...\leq X_n$. Discard the minimum value $min(X)=X_1$ from the sample, and compute the mean of the remaining observations.
+\item The Deletion Estimator II: Order the sample observations such that $X_1\leq X_2\leq X_3...\leq X_n$. Discard the two lowers values $X_1, X_2$ and the two highest values ($X_{n-1}, X_n$) from the sample, and compute the mean of the remaining observations.
+\end{itemize}
+
+### 2a) Write a function that takes data and returns a dataframe of values for the mean, median, and two deletion estimators (eg, it should take data and return a dataframe with 4 rows and 2 columns). Hint: start your function by defining a dataframe with an "estimator" and "result" column. Use \texttt{sort()} to sort your data. Make sure your function works by evaluating the following toy sample: $X=2, 1, 100, 3, 4, 3, 2$. Your function should return the following:
+
+\begin{tabular}{ p{1.5cm}| p{2.25cm} | p{2.5cm} | p{3.25cm}| p{3.25cm}}
+ Estimator & Sample Mean & Sample Median & Deletion Estimator I & Deletion Estimator II \\
+     \hline
+$\hat\mu$  & 16.429 & 3 & 19 & 2.667  \\
+\end{tabular}
