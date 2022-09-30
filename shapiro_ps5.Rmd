@@ -12,6 +12,7 @@ set.seed(6800)
 library(tidyverse)
 library(readr)
 library(stats)
+library(stargazer)
 ```
 
 
@@ -153,3 +154,45 @@ Confirmed!
      \hline
 $\hat\mu$  & 16.429 & 3 & 19 & 2.667  \\
 \end{tabular}
+
+```{r 2a}
+tablefunc <- function(data){
+  
+  estimator <- c("Sample Mean", "Sample Median", "Deletion Estimator I", "Deletion Estimator II")
+  
+# Empty vector time.
+  
+  result <- c(rep(0), times = 4)
+  
+  deletion <- data %>%
+    sort(decreasing = FALSE)
+  deletion1 <- deletion[-1] %>%
+    mean()
+  
+# A bit round-about, but it does the job. 
+  
+  deletionintermediate <- deletion[-c(1, 2)]
+  
+  deletionlast <- deletionintermediate %>%
+    sort(decreasing = TRUE) 
+  
+  deletion2 <- deletionlast[-c(1, 2)] %>%
+    mean()
+  
+  for(i in 1:4){
+    if(estimator[i] == "Sample Mean"){result[i] <- sum(data)/length(data)
+    }
+    else if(estimator[i] == "Sample Median"){result[i] <- median(data)
+    }
+    else if(estimator[i] == "Deletion Estimator I"){result[i] <- deletion1}
+    else(result[i] <- deletion2)
+      
+  }
+  data.frame(estimator, result)
+  }
+
+vector <- as.numeric(c(2, 1, 100, 3, 4, 3, 2))
+tablefunc(vector)
+```
+
+### 2b) Using the function you defined above, simulate the sampling distribution for all the estimators from part a) for the receipts variable. Your sample size in this case should be $n=100$, and you should conduct 1,000 simulations (hint: create an empty dataframe, then use \texttt{rbind()} to append the results of each iteration of your simulation). Create a single density plot using \texttt{ggplot()} and \texttt{geom\_density()}, including a vertical line at the true population mean, and with each line in a different color. Axes and legends should be appropriately titled.
