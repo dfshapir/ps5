@@ -204,17 +204,15 @@ tablefunc(vector)
 sampling <- house %>% infer::rep_sample_n(size = 100, replace = FALSE, reps = 1000)
 
 # Each time, I'm going to pull the desired coefficient from my nested estimator 
-# dataframes. So for "mean", I'll pull the mean. I can use the handy pluck() 
-# function. 
+# dataframes. So for "mean", I'll pull the mean. I can use the handy pluck() function. 
 
-samplestats <- sample %>%
+samplestats <- sampling %>%
   group_by(replicate) %>%
   nest() %>%
     mutate(stats = map(.x = data, .f = ~tablefunc(.x$receipts))) %>% 
   
 # I mapped my function over every sample. Issue is, now I have dataframes 
-# mapped within my column. So I need to do a series of "plucking" to get that 
-# solved.
+# mapped within my column. So I need to do a series of "plucking" to solve that.
   
   mutate(statistics = map(stats, ~pluck(.x, var = 2))) %>%
   mutate(mean = map(statistics, ~pluck(.x, 1))) %>%
@@ -262,3 +260,118 @@ ggplot(samplestats) +
        fill = "Legend")
 ```
 
+### 2c) Interpret your results above in terms of bias.
+
+In this case, the sample mean is an unbiased estimator of the population mean. As we can see by our geom_density() graph, it doesn't systematically overestimate or underestimate the population mean. The sample median is also relatively unbiased; the population median is `r median(house$recepts)`, and the density plot for the sample median appears to generally be centered around that point.
+
+The first deletion estimator is also relatively unbiased. The value for the population of Deletion Estimator I is 1196.519, and the density plot for the estimator appears to be relatively closely centered around these two numbers. Deletion Estimator II, however, is a bit different. The value for the population of Deletion Estimator II is 1075.232, but that value appears well into the right-hand side of the distribution of Deletion Estimator II in this graph. This means that Deletion Estimator II is more biased. 
+
+### 2d) Repeat the simulation above using samples of size $n = 7$. How do the results compare?
+
+```{r 2d}
+sampling2d <- house %>% infer::rep_sample_n(size = 7, replace = FALSE, reps = 1000)
+
+samplestats2d <- sampling2d %>%
+  group_by(replicate) %>%
+  nest() %>%
+    mutate(stats = map(.x = data, .f = ~tablefunc(.x$receipts))) %>% 
+  mutate(statistics = map(stats, ~pluck(.x, var = 2))) %>%
+  mutate(mean = map(statistics, ~pluck(.x, 1))) %>%
+  mutate(median = map(statistics, ~pluck(.x, 2))) %>%
+  mutate(deletion1 = map(statistics, ~pluck(.x, 3))) %>%
+  mutate(deletion2 = map(statistics, ~pluck(.x, 4))) %>%
+  select(-c(data, stats, statistics))
+
+samplestats2d$mean <- as.numeric(samplestats2d$mean)
+samplestats2d$median <- as.numeric(samplestats2d$median)
+samplestats2d$deletion1 <- as.numeric(samplestats2d$deletion1)
+samplestats2d$deletion2 <- as.numeric(samplestats2d$deletion2)
+```
+
+```{r nextplot}
+
+fills <- c("Del. Estimator II" = "lightblue", "Del. Estimator I" = "red", "Mean" = "yellow", "Median" = "lightgreen")
+
+xint <- mean(house$receipts)
+
+xint <- data.frame(xint)
+
+ggplot(samplestats2d) +
+  geom_density(aes(x = mean, fill = "Mean"), color = "orange", alpha = 0.4) +
+  geom_density(aes(x = median, fill = "Median"), color = "darkgreen", alpha = 0.4) +
+  geom_density(aes(x = deletion1, fill = "Del. Estimator I"), color = "darkred", alpha = 0.4) +
+  geom_density(aes(x = deletion2, fill = "Del. Estimator II"), color = "darkblue", alpha = 0.4) +
+  geom_vline(xintercept = xint$xint, color = "red") +
+   geom_text(data = xint, x = xint$xint, y = 0.0015, label = "True Mean", size = 3, angle = 90, vjust = 1.25) +
+  labs(x = "Funds Raised",
+       y = "Density",
+       title = "Estimator Sampling Distributions",
+       subtitle = "Sample Size: 7", 
+       fill = "Legend")
+```
+
+Just looking at the graph here, we see that there is a rather large range for some of these values -- much bigger than in the previous sample, when we were only sampling 100 values. This makes sense, because there's a lot more room for "unrepresentative" (not a technical term) data when we are looking at an n = 7 than an n = 100. When n = 7, there are just naturally going to be more outliers. 
+
+### 2e) Compare your estimators in terms of efficiency, using the sampling distributions. Explain your results.
+
+Efficiency is measured by variance. If the variance is lower, the estimator is more efficient. So let's just first take our variance to figure it out mathematically. I'm going to use the one with size = 100: the sample with size = 7 would have the same *relative* statistics -- so the proportions would be the same; the numbers would change a bit, but not relative to one another.
+
+```{r 2e}
+meanvar <- var(samplestats$mean)
+medianvar <- var(samplestats$median)
+del1var <- var(samplestats$deletion1)
+del2var <- var(samplestats$deletion2)
+
+```
+
+According to these data, the mean and Deletion Estimator I have higher variances than the median and Deletion Estimator II. When size = 100, the mean has variance `r meanvar`, the median has variance `r medianvar`, Deletion Estimator I has variance `r del1var`, and Deletion Estimator II has variance `r del2var`. So this means that the median and Deletion Estimator II are more efficient than the other two. 
+
+### 2f) Using mean squared error of your sampling distributions, identify which of the estimators is the most unbiased and efficient.
+
+The mean squared error function can be defined as $MSE[\hat\theta] = Bias(\hat\theta)^2 + V(\hat\theta)$. 
+
+Bias, meanwhile, can be found out if $E[\hat\theta] - E[\theta] = 0$. I highly doubt that any of our samples will be entirely unbiased, but we can at least see *how* biased and unbiased our samples are. Let's use size = 100 again. 
+
+```{r bias}
+biasmean <- (mean(samplestats$mean) - mean(house$receipts))
+biasmedian <- (mean(samplestats$median) - median(house$receipts))
+
+# Now, I have to use the functions that I used within my "tablefunc" 
+#function to find the values for the full population of the deletion estimators.
+
+delet <- house$receipts %>%
+    sort(decreasing = FALSE)
+
+delet1 <- delet[-1] %>%
+    mean()
+
+deletintermediate <- delet[-c(1, 2)]
+  
+deletlast <- deletintermediate %>%
+    sort(decreasing = TRUE) 
+  
+delet2 <- deletlast[-c(1, 2)] %>%
+    mean()
+  
+  
+biasdel1 <- (mean(samplestats$deletion1) - delet1)
+biasdel2 <- (mean(samplestats$deletion2) - delet2)
+```
+
+Now, we can go ahead and find the MSE of all four.
+
+```{r mse}
+msemean <- biasmean^2 + meanvar
+msemedian <- biasmedian^2 + medianvar
+msedel1 <- biasdel1^2 + del1var
+msedel2 <- biasdel2^2 + del2var 
+```
+
+We get: 
+
+The mean squared error of the sample mean is `r msemean`.
+The mean squared error of the sample median is `r msemedian`.
+The mean squared error of the sample first deletion estimator is `r msedel1`.
+The mean squared error of the sample second deletion estimator is `r msedel2`.
+
+As we can see, the estimator with the lowest mean squared error -- meaning the most efficient and unbiased -- is the median. 
