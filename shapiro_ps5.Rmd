@@ -196,3 +196,69 @@ tablefunc(vector)
 ```
 
 ### 2b) Using the function you defined above, simulate the sampling distribution for all the estimators from part a) for the receipts variable. Your sample size in this case should be $n=100$, and you should conduct 1,000 simulations (hint: create an empty dataframe, then use \texttt{rbind()} to append the results of each iteration of your simulation). Create a single density plot using \texttt{ggplot()} and \texttt{geom\_density()}, including a vertical line at the true population mean, and with each line in a different color. Axes and legends should be appropriately titled.
+
+```{r 2b}
+
+# I don't do this exactly how the problem instructs, but I prefer my way.
+
+sampling <- house %>% infer::rep_sample_n(size = 100, replace = FALSE, reps = 1000)
+
+# Each time, I'm going to pull the desired coefficient from my nested estimator 
+# dataframes. So for "mean", I'll pull the mean. I can use the handy pluck() 
+# function. 
+
+samplestats <- sample %>%
+  group_by(replicate) %>%
+  nest() %>%
+    mutate(stats = map(.x = data, .f = ~tablefunc(.x$receipts))) %>% 
+  
+# I mapped my function over every sample. Issue is, now I have dataframes 
+# mapped within my column. So I need to do a series of "plucking" to get that 
+# solved.
+  
+  mutate(statistics = map(stats, ~pluck(.x, var = 2))) %>%
+  mutate(mean = map(statistics, ~pluck(.x, 1))) %>%
+  mutate(median = map(statistics, ~pluck(.x, 2))) %>%
+  mutate(deletion1 = map(statistics, ~pluck(.x, 3))) %>%
+  mutate(deletion2 = map(statistics, ~pluck(.x, 4))) %>%
+  
+# Don't need my huge nested columns anymore, so I'm going to get rid of those.
+  
+  select(-c(data, stats, statistics))
+
+# Last, I need to make my columns numeric.
+
+samplestats$mean <- as.numeric(samplestats$mean)
+samplestats$median <- as.numeric(samplestats$median)
+samplestats$deletion1 <- as.numeric(samplestats$deletion1)
+samplestats$deletion2 <- as.numeric(samplestats$deletion2)
+
+# Now we're good to start setting up the plot!
+```
+
+```{r plot2}
+
+# Had to do some tricky manual labor here to get the legend with the right colors.
+
+fills <- c("Del. Estimator II" = "lightblue", "Del. Estimator I" = "red", "Mean" = "yellow", "Median" = "lightgreen")
+
+# Have to make a dataframe for geom_text().
+
+xint <- mean(house$receipts)
+
+xint <- data.frame(xint)
+
+ggplot(samplestats) +
+  geom_density(aes(x = mean, fill = "Mean"), color = "orange", alpha = 0.4) +
+  geom_density(aes(x = median, fill = "Median"), color = "darkgreen", alpha = 0.4) +
+  geom_density(aes(x = deletion1, fill = "Del. Estimator I"), color = "darkred", alpha = 0.4) +
+  geom_density(aes(x = deletion2, fill = "Del. Estimator II"), color = "darkblue", alpha = 0.4) +
+  geom_vline(xintercept = xint$xint, color = "red") +
+   geom_text(data = xint, x = xint$xint, y = 0.010, label = "True Mean", size = 3, angle = 90, vjust = 1.25) +
+  labs(x = "Funds Raised",
+       y = "Density",
+       title = "Estimator Sampling Distributions",
+       subtitle = "Sample Size: 100", 
+       fill = "Legend")
+```
+
