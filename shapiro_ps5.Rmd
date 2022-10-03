@@ -262,9 +262,9 @@ ggplot(samplestats) +
 
 ### 2c) Interpret your results above in terms of bias.
 
-In this case, the sample mean is an unbiased estimator of the population mean. As we can see by our geom_density() graph, it doesn't systematically overestimate or underestimate the population mean. The sample median is also relatively unbiased; the population median is `r median(house$recepts)`, and the density plot for the sample median appears to generally be centered around that point.
+In this case, the sample mean is an unbiased estimator of the population mean. As we can see by our geom_density() graph, it doesn't systematically overestimate or underestimate the population mean. The first deletion estimator is also relatively unbiased, as the density plot for the estimator appears to be relatively closely centered around these two numbers. 
 
-The first deletion estimator is also relatively unbiased. The value for the population of Deletion Estimator I is 1196.519, and the density plot for the estimator appears to be relatively closely centered around these two numbers. Deletion Estimator II, however, is a bit different. The value for the population of Deletion Estimator II is 1075.232, but that value appears well into the right-hand side of the distribution of Deletion Estimator II in this graph. This means that Deletion Estimator II is more biased. 
+The sample median  and Deletion Estimator II, however, are more biased. The population median is `r median(house$recepts)`, and the density plot for the sample median appears to generally be centered around that point. However, this is significantly skewed left of the population mean. Deletion Estimator II, also, is biased; it is generally far to the left of the mean. 
 
 ### 2d) Repeat the simulation above using samples of size $n = 7$. How do the results compare?
 
@@ -330,32 +330,13 @@ According to these data, the mean and Deletion Estimator I have higher variances
 
 The mean squared error function can be defined as $MSE[\hat\theta] = Bias(\hat\theta)^2 + V(\hat\theta)$. 
 
-Bias, meanwhile, can be found out if $E[\hat\theta] - E[\theta] = 0$. I highly doubt that any of our samples will be entirely unbiased, but we can at least see *how* biased and unbiased our samples are. Let's use size = 100 again. 
+Bias, meanwhile, can be found out if $E[\hat\theta] - E[\theta] = 0$. I highly doubt that any of our samples will be entirely unbiased, but we can at least see *how* biased and unbiased our samples are. Let's use size = 100 again. We're looking at how the estimators compare to the *population mean.*
 
 ```{r bias}
 biasmean <- (mean(samplestats$mean) - mean(house$receipts))
-biasmedian <- (mean(samplestats$median) - median(house$receipts))
-
-# Now, I have to use the functions that I used within my "tablefunc" 
-#function to find the values for the full population of the deletion estimators.
-
-delet <- house$receipts %>%
-    sort(decreasing = FALSE)
-
-delet1 <- delet[-1] %>%
-    mean()
-
-deletintermediate <- delet[-c(1, 2)]
-  
-deletlast <- deletintermediate %>%
-    sort(decreasing = TRUE) 
-  
-delet2 <- deletlast[-c(1, 2)] %>%
-    mean()
-  
-  
-biasdel1 <- (mean(samplestats$deletion1) - delet1)
-biasdel2 <- (mean(samplestats$deletion2) - delet2)
+biasmedian <- (mean(samplestats$median) - mean(house$receipts))
+biasdel1 <- (mean(samplestats$deletion1) - mean(house$receipts))
+biasdel2 <- (mean(samplestats$deletion2) - mean(house$receipts))
 ```
 
 Now, we can go ahead and find the MSE of all four.
@@ -374,4 +355,4 @@ The mean squared error of the sample median is `r msemedian`.
 The mean squared error of the sample first deletion estimator is `r msedel1`.
 The mean squared error of the sample second deletion estimator is `r msedel2`.
 
-As we can see, the estimator with the lowest mean squared error -- meaning the most efficient and unbiased -- is the median. 
+As we can see, the estimator with the lowest mean squared error -- meaning the most efficient and unbiased -- is the mean. 
